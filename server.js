@@ -3,9 +3,8 @@ const express = require("express");
 const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const ImageKit = require("imagekit");
-const admin = require("firebase-admin");
 const { db } = require("./firebase");
-const bcrypt = require("bcrypt"); // Optional for password hashing
+const bcrypt = require("bcrypt");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -24,11 +23,14 @@ app.post("/api/admin", async (req, res) => {
   const { fullname, username, password, email } = req.body;
 
   try {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
     await db.collection("admin").doc(uid).set({
       uid,
       fullname,
       username,
-      password, // Consider hashing with bcrypt
+      password: hashedPassword,
       email,
     });
 
@@ -37,7 +39,6 @@ app.post("/api/admin", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
@@ -51,16 +52,15 @@ app.post("/api/login", async (req, res) => {
 
     const adminData = snapshot.docs[0].data();
 
-    // If using bcrypt:
-    // const isMatch = await bcrypt.compare(password, adminData.password);
-    const isMatch = password === adminData.password;
+    const isMatch = await bcrypt.compare(password, adminData.password);
 
     if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
     res.status(200).json({ message: "Login successful", uid: adminData.uid });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.mssage });
   }
+  e;
 });
 
 app.post("/api/store", upload.single("img"), async (req, res) => {

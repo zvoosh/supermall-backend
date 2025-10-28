@@ -1,5 +1,9 @@
-node_modules
-# ignore all .env files
+# Ignore .env files
 .env
-.env.local
-.env.*.local
+.env*
+
+# Ignore node_modules
+node_modules/
+
+# Ignore Firebase admin SDK JSON
+supermall-525d6-firebase-adminsdk-fbsvc-9c2c7e400f.json
