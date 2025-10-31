@@ -4,9 +4,11 @@ const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const ImageKit = require("imagekit");
 const { db } = require("./firebase");
+const cors = require("cors");
 const bcrypt = require("bcrypt");
 
 const app = express();
+app.use(cors());
 const PORT = process.env.PORT || 3001;
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -22,6 +24,8 @@ app.post("/api/admin", async (req, res) => {
   const uid = uuidv4();
   const { fullname, username, password, email } = req.body;
 
+  console.log("req.body", req.body);
+
   try {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
@@ -36,9 +40,11 @@ app.post("/api/admin", async (req, res) => {
 
     res.status(201).json({ message: "Admin created", uid });
   } catch (err) {
+    console.error("Admin creation error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
@@ -64,8 +70,8 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/store", upload.single("img"), async (req, res) => {
-  const uid = uuidv4();
-  const { name, category, subcategory, products, discount } = req.body;
+  const id = uuidv4();
+  const { name, category, subcategory, discount, floor } = req.body;
 
   try {
     const imageUpload = await imagekit.upload({
@@ -76,17 +82,20 @@ app.post("/api/store", upload.single("img"), async (req, res) => {
 
     const imgUrl = imageUpload.url;
 
-    await db.collection("stores").doc(uid).set({
-      uid,
+    const discountNum = Number(discount);
+    const floorNum = Number(floor);
+
+    await db.collection("stores").doc(id).set({
+      id,
       name,
       img: imgUrl,
       category,
       subcategory,
-      products,
-      discount,
+      products: [],
+      discount: discountNum,
+      floor: floorNum,
     });
-
-    res.status(201).json({ message: "Store created", uid, imgUrl });
+    res.status(201).json({ message: "Store created", id, imgUrl });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -102,74 +111,123 @@ app.get("/api/stores", async (req, res) => {
   }
 });
 
-app.get("/api/store/:id", async (req, res) => {
+app.get("/api/stores/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
     const doc = await db.collection("stores").doc(id).get();
     if (!doc.exists) return res.status(404).json({ error: "Store not found" });
 
-    res.status(200).json(doc.data());
+    const store = { id: doc.id, ...doc.data() };
+
+    const productSnapshot = await db
+      .collection("products")
+      .where("storeId", "==", id)
+      .get();
+
+    const products = productSnapshot.docs.map((doc) => doc.data());
+    console.log("products", products);
+    store.products = products;
+    console.log("store products", store.products);
+
+    res.status(200).json(store);
   } catch (err) {
+    console.error("Error fetching store with products:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.put("/api/store/:id", upload.single("img"), async (req, res) => {
+app.put("/api/stores/:id", upload.single("img"), async (req, res) => {
   const { id } = req.params;
-  const { name, category, subcategory, products, discount } = req.body;
+  const { name, category, subcategory, discount, floor } = req.body;
 
   try {
     const doc = await db.collection("stores").doc(id).get();
-    if (!doc.exists) return res.status(404).json({ error: "Store not found" });
-
-    const storeData = doc.data();
-    let imgUrl = storeData.img;
-
-    if (req.file) {
-      if (storeData.img) {
-        const filePath = storeData.img.split("/").slice(-2).join("/");
-        await imagekit.deleteFile(filePath).catch(() => {});
-      }
-
-      const imageUpload = await imagekit.upload({
-        file: req.file.buffer,
-        fileName: req.file.originalname,
-        folder: "/supermall",
-      });
-
-      imgUrl = imageUpload.url;
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Store not found" });
     }
 
-    await db.collection("stores").doc(id).update({
+    const storeData = doc.data();
+    let imgUrl = storeData?.img;
+
+    if (req.file) {
+      try {
+        if (imgUrl) {
+          const filePath = imgUrl.split("/").slice(-2).join("/");
+          await imagekit.deleteFile(filePath).catch(() => {});
+        }
+
+        const imageUpload = await imagekit.upload({
+          file: req.file.buffer,
+          fileName: req.file.originalname,
+          folder: "/supermall",
+        });
+
+        imgUrl = imageUpload.url;
+      } catch (uploadErr) {
+        return res
+          .status(500)
+          .json({ error: "Image upload failed", details: uploadErr.message });
+      }
+    }
+
+    const updateData = {
       name,
       category,
       subcategory,
-      products,
-      discount,
-      img: imgUrl,
-    });
+      floor: Number(floor),
+      discount: Number(discount),
+    };
+
+    if (req.file && imgUrl) {
+      updateData.img = imgUrl;
+    }
+
+    // Update store document
+    await db.collection("stores").doc(id).update(updateData);
 
     res.status(200).json({ message: "Store updated", id, img: imgUrl });
   } catch (err) {
+    console.error("Store update error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete("/api/store/:id", async (req, res) => {
-  const { id } = req.params;
+app.delete("/api/stores/:id", async (req, res) => {
+  const { id: storeId } = req.params;
 
   try {
-    await db.collection("stores").doc(id).delete();
-    res.status(200).json({ message: "Store deleted", id });
+    const productsSnapshot = await db
+      .collection("products")
+      .where("storeId", "==", storeId)
+      .get();
+
+    const batch = db.batch();
+
+    productsSnapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+
+    // Delete the store itself
+    batch.delete(db.collection("stores").doc(storeId));
+
+    await batch.commit();
+
+    res.status(200).json({
+      message: `Store and ${productsSnapshot.size} associated products deleted`,
+      storeId,
+    });
   } catch (err) {
+    console.error("Error deleting store and products:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
 app.post("/api/product", upload.single("img"), async (req, res) => {
-  const { name, price, discount, description } = req.body;
   const id = uuidv4();
+  const { name, price, discount, description, storeId } = req.body;
+
+  console.log(storeId);
 
   try {
     const imageUpload = await imagekit.upload({
@@ -180,17 +238,18 @@ app.post("/api/product", upload.single("img"), async (req, res) => {
 
     const imgUrl = imageUpload.url;
 
-    await db
-      .collection("products")
-      .doc(id)
-      .set({
-        id,
-        name,
-        img: imgUrl,
-        price: Number(price),
-        discount: Number(discount),
-        description,
-      });
+    const discountNum = Number(discount);
+    const priceNum = Number(price);
+
+    await db.collection("products").doc(id).set({
+      id,
+      name,
+      img: imgUrl,
+      price: priceNum,
+      discount: discountNum,
+      description,
+      storeId,
+    });
 
     res.status(201).json({ message: "Product created", id, imgUrl });
   } catch (err) {
