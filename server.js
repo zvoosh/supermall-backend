@@ -6,6 +6,7 @@ const ImageKit = require("imagekit");
 const { db } = require("./firebase");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
+const xlsx = require("xlsx");
 
 const app = express();
 app.use(cors());
@@ -128,7 +129,6 @@ app.get("/api/stores/:id", async (req, res) => {
     const products = productSnapshot.docs.map((doc) => doc.data());
     console.log("products", products);
     store.products = products;
-    console.log("store products", store.products);
 
     res.status(200).json(store);
   } catch (err) {
@@ -277,6 +277,55 @@ app.get("/api/product/:id", async (req, res) => {
 
     res.status(200).json(doc.data());
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/products/upload", upload.single("file"), async (req, res) => {
+  try {
+    const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = xlsx.utils.sheet_to_json(sheet);
+
+    const products = [];
+
+    for (const row of data) {
+      const id = uuidv4();
+      const name = row.name;
+      const price = Number(row.price);
+      const discount = Number(row.discount || 0);
+      const description = row.description || "";
+      const imageUrl = row.imageUrl || "";
+      const storeId = row.storeId;
+
+      const storeRef = db.collection("stores").doc(storeId);
+      const storeDoc = await storeRef.get();
+      if (!storeDoc.exists) {
+        console.warn(
+          `⚠️ Store ID ${storeId} not found. Skipping product ${name}`
+        );
+        continue;
+      }
+      const productData = {
+        id,
+        name,
+        price,
+        discount,
+        description,
+        img: imageUrl,
+        storeId,
+      };
+
+      await db.collection("products").doc(id).set(productData);
+      products.push(productData);
+    }
+
+    res.status(201).json({
+      message: "✅ Products uploaded successfully",
+      count: products.length,
+    });
+  } catch (err) {
+    console.error("Bulk upload error:", err);
     res.status(500).json({ error: err.message });
   }
 });
