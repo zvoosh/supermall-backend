@@ -4,12 +4,10 @@ const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const ImageKit = require("imagekit");
 const { db } = require("./firebase");
-const cors = require("cors");
 const bcrypt = require("bcrypt");
 const xlsx = require("xlsx");
 
 const app = express();
-app.use(cors());
 const PORT = process.env.PORT || 3001;
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -39,7 +37,7 @@ app.post("/api/admin", async (req, res) => {
       email,
     });
 
-    res.status(201).json({ message: "Admin created", uid });
+    res.status(201).json({ message: "Admin created", uid }); 
   } catch (err) {
     console.error("Admin creation error:", err);
     res.status(500).json({ error: err.message });
