@@ -6,4 +6,4 @@
 node_modules/
 
 # Ignore Firebase admin SDK JSON
-supermall-525d6-firebase-adminsdk-fbsvc-9c2c7e400f.json
+firebase-adminsdk.json
