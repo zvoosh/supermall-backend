@@ -18,13 +18,12 @@ const imagekit = new ImageKit({
 });
 
 app.use(express.json());
-app.use((req, res) => {
-  res.status(404).json({ error: "Route not found" });
-});
+
 app.use((req, res, next) => {
   console.log(`[${req.method}] ${req.url}`);
   next();
 });
+
 app.get("/api/test", (req, res) => {
   res.send("API is working");
 });
@@ -388,6 +387,10 @@ app.delete("/api/product/:id", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
 });
 
 app.listen(PORT, () => {
