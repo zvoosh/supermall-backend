@@ -25,6 +25,10 @@ app.use((req, res, next) => {
   console.log(`[${req.method}] ${req.url}`);
   next();
 });
+app.get("/api/test", (req, res) => {
+  res.send("API is working");
+});
+
 app.post("/api/admin", async (req, res) => {
   const uid = uuidv4();
   const { fullname, username, password, email } = req.body;
@@ -304,9 +308,7 @@ app.post("/api/products/upload", upload.single("file"), async (req, res) => {
       const storeRef = db.collection("stores").doc(storeId);
       const storeDoc = await storeRef.get();
       if (!storeDoc.exists) {
-        console.warn(
-          `⚠️ Store ID ${storeId} not found. Skipping product ${name}`
-        );
+        console.warn(`Store ID ${storeId} not found. Skipping product ${name}`);
         continue;
       }
       const productData = {
@@ -324,7 +326,7 @@ app.post("/api/products/upload", upload.single("file"), async (req, res) => {
     }
 
     res.status(201).json({
-      message: "✅ Products uploaded successfully",
+      message: "Products uploaded successfully",
       count: products.length,
     });
   } catch (err) {
