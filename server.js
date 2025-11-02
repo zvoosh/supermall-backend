@@ -18,6 +18,9 @@ const imagekit = new ImageKit({
 });
 
 app.use(express.json());
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
 
 app.post("/api/admin", async (req, res) => {
   const uid = uuidv4();
@@ -37,7 +40,7 @@ app.post("/api/admin", async (req, res) => {
       email,
     });
 
-    res.status(201).json({ message: "Admin created", uid }); 
+    res.status(201).json({ message: "Admin created", uid });
   } catch (err) {
     console.error("Admin creation error:", err);
     res.status(500).json({ error: err.message });
