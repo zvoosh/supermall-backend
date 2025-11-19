@@ -1,7 +1,9 @@
 ## SuperMall Backend
+---
 A Node.js backend for SuperMall — a marketplace-style application. This service handles API endpoints, data persistence, and integration with Firebase.
 ---
 ## About
+---
 This repository contains the backend server for the SuperMall application. It provides RESTful APIs to manage products, users, orders, and more. It uses Firebase for data storage and authentication and a Node.js server to handle the backend logic.
 ---
 ## Features
